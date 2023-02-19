@@ -1,11 +1,23 @@
 import React, { useState, useRef, useEffect }  from 'react'
-import { Image, Animated, StyleSheet, Text, View, ImageBackground, Dimensions, TouchableHighlight, Button, BackHandler} from 'react-native'
+import { Alert, Image, Animated, StyleSheet, Text, View, ImageBackground, Dimensions, TouchableHighlight, Button, BackHandler} from 'react-native'
+import RNFS from 'react-native-fs';
+
+const filePath = RNFS.DocumentDirectoryPath + "/records.dat";
+
 const Sound = require('react-native-sound')
 const images = [
   require('../../images/back.png'),
   require('../../images/help1.png'),
   require('../../images/help2.png')
 ];
+
+const records = [
+  {record:0,date: ''},
+  {record:0,date: ''},
+  {record:0,date: ''},
+  {record:0,date: ''},
+  {record:0,date: ''}
+]
 
 const styles = StyleSheet.create({
   number : {
@@ -41,7 +53,7 @@ const styles = StyleSheet.create({
   },
   box5rows : {
     borderRadius : 10,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.5)',
     overflow : 'hidden'
   },
   box5cols : {
@@ -56,7 +68,7 @@ const styles = StyleSheet.create({
     marginTop: 0,
     flex: 1,
     borderRadius : 10,
-    backgroundColor: 'rgba(255,255,255,0.7)'
+    backgroundColor: 'rgba(255,255,255,0.5)'
   }
 })
 
@@ -99,8 +111,9 @@ const PlayField = (props) => {
           });
         }, 100);
       }, 100);
-    }
+    }useef
   }
+
   const fadeMove = (op) => {
     Animated.timing(fadeNum, {
       toValue: op,
@@ -137,6 +150,19 @@ const PlayField = (props) => {
           iq.shift();
           if (field.lives>0) {
             field.lives-=1;
+            if (btnSound == 'Sounds:on') {
+              setTimeout(() => {
+                var sound = new Sound("error.mp3",Sound.MAIN_BUNDLE, (error) => {
+                              /* ... */
+                });
+         
+                setTimeout(() => {
+                  sound.play((success) => {
+                    sound.release();
+                  });
+                }, 100);
+              }, 100);
+            }
             setField({
               playBox:ii, 
               queue:[...iq,ip], 
@@ -156,7 +182,18 @@ const PlayField = (props) => {
               lives:field.lives
             });
           } else {
-            alert('Your score:'+field.score+'! Game over');
+              fadeAnim.stopAnimation(( value ) => {
+                setFadeValue(value);
+              });
+              Alert.alert(
+              'Game over ',
+              'Your score:'+field.score,
+              [
+                {text: 'OK', onPress: this.onDeleteBTN},
+              ],
+              { cancelable: false }
+            );
+            setTimeout(() => {setStep(0);}, 100);
             const resetted = resetfield();
             setField({
                     playBox:resetted.arr, 
@@ -179,7 +216,7 @@ const PlayField = (props) => {
           }
         }
         else {
-          fadeIn(what,0,field.level>5 ? tt=1+10000/(field.level-5) : 10000,field);
+          fadeIn(what,0,calcTime(field.level,step),field);
         }
       }
     });
@@ -214,6 +251,10 @@ const PlayField = (props) => {
   const [helpVisible, setHelpVisible] = useState (0);
 
   const [fadeValue, setFadeValue] = useState (1);
+
+  const [imgLoading, setImgLoading] = useState (1);
+
+  const [step, setStep] = useState(0);
 
   const [field, setField] = useState({ 
       playBox:resetted.arr,
@@ -286,7 +327,37 @@ const PlayField = (props) => {
     return sum;
   }
 
-    var boxRows = field.x;
+  function calcTime(l,s) {
+    const steps = [10,10,15,20,25,30]
+    var ss = l>5 ? 5 : l;
+    var tt = l>5 ? 1+10000/(l-5) : 10000;
+    if (s>steps[ss]) {tt = tt/((s-steps[ss])/3)}
+    return tt
+  }
+
+  onDeleteBTN = () => {
+    fadeAnim.setValue(1);
+    fadeIn(fadeAnim,0,10000,field);
+  }
+
+  const makeFile = async (content) => {
+    try {
+      //create a file at filePath. Write the content data to it
+      await RNFS.writeFile(filePath, content, "utf8");
+      console.log("written to file");
+    } catch (error) { //if the function throws an error, log it out.
+      console.log(filePath+' error:'+error);
+    }
+  };
+
+  function writeRecords(rr) {
+    const recordlist = rr
+    .sort((a,b) => b.record-a.record)
+    .map((item) => item.record+':'+item.date+',');
+    return recordlist+'';
+  }
+
+  var boxRows = field.x;
     var boxCols = field.y;
   
     var myBox = [];
@@ -310,15 +381,14 @@ const PlayField = (props) => {
         outputRange: [xy+xw*j, xw*j+xy-10+Math.floor(Math.random() * 20)]
       });
       myNums.push(
-        <Animated.View style= {[{position:'absolute', top:xs[i,j], left:ys[i,j], opacity:fadeNum}]} pointerEvents={'none'}>
-          <Text style = {[{fontSize:62, fontFamily:'PollockC3', color:'red'}]}>
+        <Animated.View key={'m'+i+'.'+j} style= {[{position:'absolute', top:xs[i,j], left:ys[i,j], opacity:fadeNum}]} pointerEvents={'none'}>
+          <Text key={'t'+i+'.'+j} style = {[{fontSize:62, fontFamily:'PollockC3', color:'green'}]}>
             {nums.playNums[i][j]}
           </Text>
         </Animated.View>
       );
       }
     }
-    
   
     const boxSizes = {
       height : Math.floor(Dimensions.get("window").width*boxRows/5)-(5+5*(boxRows-2)),
@@ -332,12 +402,38 @@ const PlayField = (props) => {
               <View key = {'viewBox'+(i+1)+(j+1)} style= {styles.box}>
                 <TouchableHighlight key = {'viewContent'+(i+1)+(j+1)} onPress={() => {
                   fadeAnim.setValue(1);
+                  setStep(step+1);
                   click();
                   let ii = [...field.playBox];
                   let ic = fieldAdd(ii,i,j,field.queue[0],true,1);
-                  if (ic<0) {field.lives-=1; ic=0}
+                  if (ic<0) {field.lives-=1; ic=0
+                    if (btnSound == 'Sounds:on') {
+                      setTimeout(() => {
+                        var sound = new Sound("error.mp3",Sound.MAIN_BUNDLE, (error) => {
+                                      /* ... */
+                        });
+                 
+                        setTimeout(() => {
+                          sound.play((success) => {
+                            sound.release();
+                          });
+                        }, 100);
+                      }, 100);
+                    }
+                  }
                   if (field.lives<0) {
-                    alert ('Your score:'+field.score+'! Game over');
+                    fadeAnim.stopAnimation(( value ) => {
+                      setFadeValue(value);
+                    });
+                    Alert.alert(
+                      'Game over',
+                      'Your score:'+field.score,
+                      [
+                        {text: 'OK', onPress: this.onDeleteBTN},
+                      ],
+                      { cancelable: false }
+                    );
+                    setTimeout(() => {setStep(0);}, 100);
                     const resetted = resetfield();
                     setField({
                             playBox:resetted.arr, 
@@ -362,7 +458,6 @@ const PlayField = (props) => {
                     lives:field.lives
                   });
                   if (arrSum(ii,field.x,field.y)==0) {
-                    fadeNum.stopAnimation();
                     setNums({playNums:[
                       ['','','','',''],
                       ['','','','',''],
@@ -370,7 +465,18 @@ const PlayField = (props) => {
                       ['','','','',''],
                       ['','','','','']
                     ]})
-                    alert('Level completed');
+                    fadeAnim.stopAnimation(( value ) => {
+                      setFadeValue(value);
+                    });
+                   Alert.alert(
+                      'Level completed',
+                      'Press OK for next level',
+                      [
+                        {text: 'OK', onPress: this.onDeleteBTN},
+                      ],
+                      { cancelable: false }
+                    );
+                    setTimeout(() => {setStep(0);}, 100);
                     var xx = field.x;
                     var yy = field.y;
                     if (xx<yy) {xx++}
@@ -386,11 +492,11 @@ const PlayField = (props) => {
                             score:field.score,
                             level:field.level+1,
                             lives:field.lives
-                          });
-                  }
+                          });    
+                    }
                   }
                   }} style= {styles.content}>
-                  <Text key = {'text'+(i+1)+(j+1)} style= {styles.number} >
+                  <Text key = {'ptext'+(i+1)+(j+1)} style= {styles.number} >
                     {field.playBox[i][j] == 0 ? '':field.playBox[i][j]}
                   </Text>
                 </TouchableHighlight>
@@ -399,7 +505,7 @@ const PlayField = (props) => {
           )
       }
       myBox.push(
-        <View style= {styles.box5cols}>
+        <View key={'rowview'+i} style= {styles.box5cols}>
           {myRow}
         </View>
       )
@@ -411,10 +517,10 @@ const PlayField = (props) => {
       outputRange: ['#F00', '#394']
     });
     myQueue.push(
-        <View style= {styles.box5}>
-          <View style= {styles.box}>
-            <Animated.View style= {[styles.content, {backgroundColor: color}]}>
-              <Text style= {styles.number} >
+        <View key='q1' style= {styles.box5}>
+          <View key='q2' style= {styles.box}>
+            <Animated.View key='q3' style= {[styles.content, {backgroundColor: color}]}>
+              <Text key='qt1' style= {styles.number} >
                 {field.queue[0]}
               </Text>
             </Animated.View>
@@ -423,15 +529,16 @@ const PlayField = (props) => {
       )
     useEffect(() => {
       fadeAnim.setValue(fadeValue);
+      makeFile(writeRecords(records));
     }, []);
     
-    if (menuVisible==0) fadeIn(fadeAnim,0,field.level>5 ? tt=1+10000/(field.level-5) : 10000,field);
+    if (menuVisible==0) fadeIn(fadeAnim,0,calcTime(field.level,step),field);
     for (let i = 1; i < 5; i++){
       myQueue.push(
-        <View style= {styles.box5}>
-          <View style= {styles.box}>
-            <View style= {[styles.content, {backgroundColor: qcolors[i]}]}>
-              <Text style= {styles.number} >
+        <View key={'qq1'+i} style= {styles.box5}>
+          <View key={'qq2'+i} style= {styles.box}>
+            <View key={'qq3'+i} style= {[styles.content, {backgroundColor: qcolors[i]}]}>
+              <Text key={'qt2'+i} style= {styles.number} >
                 {field.queue[i]}
               </Text>
             </View>
@@ -443,33 +550,33 @@ const PlayField = (props) => {
     if (menuVisible>0) {
       if (helpVisible>0) {
         helpVisible == 1 ? myMenu.push(
-          <ImageBackground source={images[1]} resizeMode="cover" style= {{position:'absolute', top:0, left:0, width:'100%', height: '100%'}}>
-          <View style = {{width:'100%', height:'100%', padding:10, flexDirection:'column-reverse'}}>
-          <Button title='Next' onPress={() => {
+          <ImageBackground key='img1' source={images[1]} resizeMode="cover" style= {{position:'absolute', top:0, left:0, width:'100%', height: '100%'}}>
+          <View key='v1' style = {{width:'100%', height:'100%', padding:10, flexDirection:'column-reverse'}}>
+          <Button key='b1' title='Next' onPress={() => {
               click();
               setHelpVisible(2);
             }}/>
           </View>    
           </ImageBackground>
         ) : myMenu.push(
-          <ImageBackground source={images[2]} resizeMode="cover" style= {{position:'absolute', top:0, left:0, width:'100%', height: '100%'}}>
+          <ImageBackground key='img2'  source={images[2]} resizeMode="cover" style= {{position:'absolute', top:0, left:0, width:'100%', height: '100%'}}>
     
           </ImageBackground>
         )
       } else {
       myMenu.push(
-        <ImageBackground source={images[0]} resizeMode="cover" style= {{position:'absolute', top:0, left:0, width:'100%', height: '100%'}}>
-            <View style = {{width:'100%', height:'100%', padding:10, flexDirection:'column-reverse'}}>
-            <Button title='Exit' onPress={() => {click();BackHandler.exitApp();}}/>
+        <ImageBackground key='img3' source={images[0]} resizeMode="cover" style= {{position:'absolute', top:0, left:0, width:'100%', height: '100%'}}>
+            <View key='v21' style = {{width:'100%', height:'100%', padding:10, flexDirection:'column-reverse'}}>
+            <Button key='b2' title='Exit' onPress={() => {click();BackHandler.exitApp();}}/>
             <View key='h1' style={{height: 1, backgroundColor: 'black', margin: 5}}>
             </View>
-            <Button title='Help' onPress={() => {
+            <Button key='b3' title='Help' onPress={() => {
               click();
               setHelpVisible(1);
             }}/>
             <View key='h2' style={{height: 1, backgroundColor: 'black', margin: 5}}>
             </View>
-            <Button title={btnTitle} onPress={() => {
+            <Button key='b4' title={btnTitle} onPress={() => {
               click();
               setBtnTitle('Resume');
               setMenuVisible(0);
@@ -479,7 +586,7 @@ const PlayField = (props) => {
             </View>
             <View key='h4' style={{height: 1, backgroundColor: 'black', margin: 5}}>
             </View>
-            <Button title={btnSound} onPress={() => {
+            <Button key='b5' title={btnSound} onPress={() => {
               click();
               if (btnSound == 'Sounds:on') {
                 setBtnSound('Sounds:off')
@@ -487,6 +594,17 @@ const PlayField = (props) => {
                 setBtnSound('Sounds:on')
               }
             }}/>
+            <View style={{minHeight:10}}>
+
+            </View>
+            <View key="rr" style={[styles.boxrows, {position:'absolute', top:5, backgroundColor:'rgba(127,255,127,0.5)', borderRadius: 10}]}>
+            <Text style={{fontSize:28}}>Local Records{"\n"}</Text>
+            <Text style={{fontSize:28}}>...</Text>
+            <Text style={{fontSize:28}}>...</Text>
+            <Text style={{fontSize:28}}>...</Text>
+            <Text style={{fontSize:28}}>...</Text>
+            <Text style={{fontSize:28}}>...</Text>
+            </View>
             </View>
         </ImageBackground>
       )
@@ -494,29 +612,46 @@ const PlayField = (props) => {
       myMenu = [];
     }
     
-    return (
-    <View style= {{ flex: 1 }}>
-      <ImageBackground source={images[0]} resizeMode="cover" style= {{ flex:1 }}>
-        <View style= {styles.boxrows}>
-          <View style= {styles.box5rows}>
+    if (imgLoading) {
+      setTimeout(() => {
+       setImgLoading(0);
+      },3000);
+      return (
+        <>
+          <View key='r1' style= {{ flex: 1, flexDirection:"column", alignContent:"center", justifyContent: "center", alignItems:"center" }}>          
+          <Text style={[{fontSize:22, width:'100%', alignSelf:'center', textAlign:'center'}]}>Loading...</Text>
+          <Image source={images[0]} style={[{position:'absolute',left:500,top:500}]}></Image>
+          <Image source={images[1]} style={[{position:'absolute',left:500,top:500}]}></Image>
+          <Image source={images[2]} style={[{position:'absolute',left:500,top:500}]}></Image>
+          </View>
+        </> 
+       )
+    } else {
+    const steps = [10,10,15,20,25,30]
+    return ( 
+    <View key='r1' style= {{ flex: 1 }}>
+      <ImageBackground key='r2' source={images[0]} resizeMode="cover" style= {{ flex:1 }}>
+        <View key='r3' style= {styles.boxrows}>
+          <View key='r4' style= {styles.box5rows}>
            {myBox}
           </View>
         </View>
         {myNums}
-        <View style = {styles.statusBox}>
-          <View style = {{width:'100%', flexDirection:'row'}}>
+        <View key='r5' style = {styles.statusBox}>
+          <View key='r6' style = {{width:'100%', flexDirection:'row'}}>
           {myQueue}
           </View>
-          <View key='v2' style={{height: 1, backgroundColor: 'black', margin: 5}}>
+          <View key='v92' style={{height: 1, backgroundColor: 'black', margin: 5}}>
           </View>
           <Text style = {{fontSize:28, padding:10}}>
-            L : {field.level} ♥: {field.lives} S: {field.score} 
+            L:{field.level} ♥:{field.lives} {field.level>5 ? steps[5]-step<0 ? '☻':'☺' : steps[field.level]-step<0 ? '☻':'☺'}:{field.level>5 ? steps[5]-step<0 ? 0:steps[5]-step : steps[field.level]-step<0 ? 0 :steps[field.level]-step} S:{field.score}
           </Text>
-          <View key='v0' style={{height: 1, backgroundColor: 'black', margin: 5}}>
+          <View key='v10' style={{height: 1, backgroundColor: 'black', margin: 5}}>
           </View>
-          <Button title='Restart' onPress={() => {
+          <Button key='b6' title='Restart' onPress={() => {
             click();
             fadeAnim.setValue(1);
+            setStep(0);
             const resetted = resetfield();
                   setField({
                     playBox:resetted.arr, 
@@ -528,9 +663,9 @@ const PlayField = (props) => {
                     lives:5
                   });
           }} style = {{margin:10}}/>
-          <View key='v1' style={{height: 1, backgroundColor: 'black', margin: 5}}>
+          <View key='v11' style={{height: 1, backgroundColor: 'black', margin: 5}}>
           </View>
-          <Button title='Pause' onPress={() => {
+          <Button  key='b7' title='Pause' onPress={() => {
             click();
             setMenuVisible(1);
             fadeAnim.stopAnimation(( value ) => {
@@ -543,6 +678,7 @@ const PlayField = (props) => {
     {myMenu}
     </View>
   );
+  }
 }
 
 export default PlayField 

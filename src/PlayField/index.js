@@ -1,5 +1,9 @@
 import React, { useState, useRef, useEffect }  from 'react'
 import { Alert, Image, Animated, StyleSheet, Text, View, ImageBackground, Dimensions, TouchableHighlight, Button, BackHandler} from 'react-native'
+import RNFS from 'react-native-fs';
+
+const filePath = RNFS.DocumentDirectoryPath + "/records.dat";
+
 const Sound = require('react-native-sound')
 const images = [
   require('../../images/back.png'),
@@ -170,15 +174,31 @@ const PlayField = (props) => {
               lives:field.lives
             });
           } else {
-            Alert.alert(
-              'Game over',
-              'Your score:'+field.score,
+              fadeAnim.stopAnimation(( value ) => {
+                setFadeValue(value);
+              });
+              var cons='';
+              if (records.recs[4].record<field.score) {
+                cons=' Congratulations! New highscore!';
+                var rd = records;
+                rd.recs[4].record=field.score;
+                var date = new Date().getDate(); //Current Date
+                var month = new Date().getMonth() + 1; //Current Month
+                var year = new Date().getFullYear(); //Current Year
+                rd.recs[4].date=date+'/'+month+'/'+year;
+                rd.recs=rd.recs.sort((a,b) => b.record-a.record);
+                setRecords(rd);
+                makeFile(writeRecords(records.recs));
+              }
+              Alert.alert(
+              'Game over ',
+              'Your score:'+field.score+cons,
               [
                 {text: 'OK', onPress: this.onDeleteBTN},
               ],
               { cancelable: false }
             );
-
+            setTimeout(() => {setStep(0);}, 100);
             const resetted = resetfield();
             setField({
                     playBox:resetted.arr, 
@@ -201,7 +221,7 @@ const PlayField = (props) => {
           }
         }
         else {
-          fadeIn(what,0,field.level>5 ? tt=1+10000/(field.level-5) : 10000,field);
+          fadeIn(what,0,calcTime(field.level,step),field);
         }
       }
     });
@@ -239,6 +259,8 @@ const PlayField = (props) => {
 
   const [imgLoading, setImgLoading] = useState (1);
 
+  const [step, setStep] = useState(0);
+
   const [field, setField] = useState({ 
       playBox:resetted.arr,
       queue:resetted.add,
@@ -256,6 +278,16 @@ const PlayField = (props) => {
       ['','','','',''],
       ['','','','',''],
       ['','','','','']
+    ]
+  })
+
+  const [records, setRecords] = useState ({
+    recs:[
+      {record:0,date: ''},
+      {record:0,date: ''},
+      {record:0,date: ''},
+      {record:0,date: ''},
+      {record:0,date: ''}
     ]
   })
 
@@ -310,9 +342,48 @@ const PlayField = (props) => {
     return sum;
   }
 
+  function calcTime(l,s) {
+    const steps = [10,10,15,20,25,30]
+    var ss = l>5 ? 5 : l;
+    var tt = l>5 ? 1+10000/(l-5) : 10000;
+    if (s>steps[ss]) {tt = tt/((s-steps[ss])/3)}
+    return tt
+  }
+
   onDeleteBTN = () => {
     fadeAnim.setValue(1);
-    fadeIn(fadeAnim,0,field.level>5 ? tt=1+10000/(field.level-5) : 10000,field);
+    fadeIn(fadeAnim,0,10000,field);
+  }
+
+  const readFile = async () => {
+    var response = ''; 
+    try {
+      response = await RNFS.readFile(filePath);
+      recs=records;
+      console.log('*********************'+response+'');
+      recs.recs = JSON.parse(response);
+      setRecords(recs); //set the value of response to the fileData Hook.
+    } catch (error) {
+      console.log('*********************'+error+'');
+      makeFile(writeRecords(records.recs));
+    }
+  };
+  
+  const makeFile = async (content) => {
+    try {
+      //create a file at filePath. Write the content data to it
+      await RNFS.writeFile(filePath, content, "utf8");
+      console.log("written to file");
+    } catch (error) { //if the function throws an error, log it out.
+      console.log(filePath+' error:'+error);
+    }
+  };
+
+  function writeRecords(rr) {
+    var recordlist = rr
+    .sort((a,b) => b.record-a.record)
+    .map((item) => '{"record":"'+item.record+'","date":"'+item.date+'"}');
+    return '['+recordlist+']';
   }
 
   var boxRows = field.x;
@@ -360,6 +431,7 @@ const PlayField = (props) => {
               <View key = {'viewBox'+(i+1)+(j+1)} style= {styles.box}>
                 <TouchableHighlight key = {'viewContent'+(i+1)+(j+1)} onPress={() => {
                   fadeAnim.setValue(1);
+                  setStep(step+1);
                   click();
                   let ii = [...field.playBox];
                   let ic = fieldAdd(ii,i,j,field.queue[0],true,1);
@@ -379,14 +451,31 @@ const PlayField = (props) => {
                     }
                   }
                   if (field.lives<0) {
+                    fadeAnim.stopAnimation(( value ) => {
+                      setFadeValue(value);
+                    });
+                    var cons='';
+                    if (records.recs[4].record<field.score) {
+                      cons=' Congratulations! New highscore!';
+                      var rd = records;
+                      rd.recs[4].record=field.score;
+                      var date = new Date().getDate(); //Current Date
+                      var month = new Date().getMonth() + 1; //Current Month
+                      var year = new Date().getFullYear(); //Current Year
+                      rd.recs[4].date=date+'/'+month+'/'+year;
+                      rd.recs=rd.recs.sort((a,b) => b.record-a.record);
+                      setRecords(rd);
+                      makeFile(writeRecords(records.recs));
+                    }
                     Alert.alert(
                       'Game over',
-                      'Your score:'+field.score,
+                      'Your score:'+field.score+cons,
                       [
                         {text: 'OK', onPress: this.onDeleteBTN},
                       ],
                       { cancelable: false }
                     );
+                    setTimeout(() => {setStep(0);}, 100);
                     const resetted = resetfield();
                     setField({
                             playBox:resetted.arr, 
@@ -418,6 +507,9 @@ const PlayField = (props) => {
                       ['','','','',''],
                       ['','','','','']
                     ]})
+                    fadeAnim.stopAnimation(( value ) => {
+                      setFadeValue(value);
+                    });
                    Alert.alert(
                       'Level completed',
                       'Press OK for next level',
@@ -426,6 +518,7 @@ const PlayField = (props) => {
                       ],
                       { cancelable: false }
                     );
+                    setTimeout(() => {setStep(0);}, 100);
                     var xx = field.x;
                     var yy = field.y;
                     if (xx<yy) {xx++}
@@ -478,9 +571,11 @@ const PlayField = (props) => {
       )
     useEffect(() => {
       fadeAnim.setValue(fadeValue);
+      readFile();
+//      makeFile(writeRecords(records));
     }, []);
     
-    if (menuVisible==0) fadeIn(fadeAnim,0,field.level>5 ? tt=1+10000/(field.level-5) : 10000,field);
+    if (menuVisible==0) fadeIn(fadeAnim,0,calcTime(field.level,step),field);
     for (let i = 1; i < 5; i++){
       myQueue.push(
         <View key={'qq1'+i} style= {styles.box5}>
@@ -542,6 +637,17 @@ const PlayField = (props) => {
                 setBtnSound('Sounds:on')
               }
             }}/>
+            <View style={{minHeight:10}}>
+
+            </View>
+            <View key="rr" style={[styles.boxrows, {alignItems:'baseline',position:'absolute', padding:30, top:5, backgroundColor:'rgba(127,255,127,0.5)', borderRadius: 10}]}>
+            <Text style={{fontSize:28, left:40}}>Local Records{"\n"}</Text>
+            <Text style={{fontSize:28}}>{records.recs[0].date} : {records.recs[0].record}</Text>
+            <Text style={{fontSize:28}}>{records.recs[1].date} : {records.recs[1].record}</Text>
+            <Text style={{fontSize:28}}>{records.recs[2].date} : {records.recs[2].record}</Text>
+            <Text style={{fontSize:28}}>{records.recs[3].date} : {records.recs[3].record}</Text>
+            <Text style={{fontSize:28}}>{records.recs[4].date} : {records.recs[4].record}</Text>
+            </View>
             </View>
         </ImageBackground>
       )
@@ -564,8 +670,8 @@ const PlayField = (props) => {
         </> 
        )
     } else {
-  
-    return (
+    const steps = [10,10,15,20,25,30]
+    return ( 
     <View key='r1' style= {{ flex: 1 }}>
       <ImageBackground key='r2' source={images[0]} resizeMode="cover" style= {{ flex:1 }}>
         <View key='r3' style= {styles.boxrows}>
@@ -581,13 +687,14 @@ const PlayField = (props) => {
           <View key='v92' style={{height: 1, backgroundColor: 'black', margin: 5}}>
           </View>
           <Text style = {{fontSize:28, padding:10}}>
-            L : {field.level} ♥: {field.lives} S: {field.score} 
+            L:{field.level} ♥:{field.lives} {field.level>5 ? steps[5]-step<0 ? '☻':'☺' : steps[field.level]-step<0 ? '☻':'☺'}:{field.level>5 ? steps[5]-step<0 ? 0:steps[5]-step : steps[field.level]-step<0 ? 0 :steps[field.level]-step} S:{field.score}
           </Text>
           <View key='v10' style={{height: 1, backgroundColor: 'black', margin: 5}}>
           </View>
           <Button key='b6' title='Restart' onPress={() => {
             click();
             fadeAnim.setValue(1);
+            setStep(0);
             const resetted = resetfield();
                   setField({
                     playBox:resetted.arr, 
