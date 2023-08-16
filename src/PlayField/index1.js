@@ -11,14 +11,6 @@ const images = [
   require('../../images/help2.png')
 ];
 
-const records = [
-  {record:0,date: ''},
-  {record:0,date: ''},
-  {record:0,date: ''},
-  {record:0,date: ''},
-  {record:0,date: ''}
-]
-
 const styles = StyleSheet.create({
   number : {
     fontSize : 32
@@ -111,7 +103,7 @@ const PlayField = (props) => {
           });
         }, 100);
       }, 100);
-    }useef
+    }
   }
 
   const fadeMove = (op) => {
@@ -185,9 +177,22 @@ const PlayField = (props) => {
               fadeAnim.stopAnimation(( value ) => {
                 setFadeValue(value);
               });
+              var cons='';
+              if (records.recs[4].record<field.score) {
+                cons=' Congratulations! New highscore!';
+                var rd = records;
+                rd.recs[4].record=field.score;
+                var date = new Date().getDate(); //Current Date
+                var month = new Date().getMonth() + 1; //Current Month
+                var year = new Date().getFullYear(); //Current Year
+                rd.recs[4].date=date+'/'+month+'/'+year;
+                rd.recs=rd.recs.sort((a,b) => b.record-a.record);
+                setRecords(rd);
+                makeFile(writeRecords(records.recs));
+              }
               Alert.alert(
               'Game over ',
-              'Your score:'+field.score,
+              'Your score:'+field.score+cons,
               [
                 {text: 'OK', onPress: this.onDeleteBTN},
               ],
@@ -276,6 +281,16 @@ const PlayField = (props) => {
     ]
   })
 
+  const [records, setRecords] = useState ({
+    recs:[
+      {record:0,date: ''},
+      {record:0,date: ''},
+      {record:0,date: ''},
+      {record:0,date: ''},
+      {record:0,date: ''}
+    ]
+  })
+
     fieldAdd = (fld,x,y,num,manual,scoreadd) => 
     {
       var score = 0;
@@ -340,6 +355,20 @@ const PlayField = (props) => {
     fadeIn(fadeAnim,0,10000,field);
   }
 
+  const readFile = async () => {
+    var response = ''; 
+    try {
+      response = await RNFS.readFile(filePath);
+      recs=records;
+      console.log('*********************'+response+'');
+      recs.recs = JSON.parse(response);
+      setRecords(recs); //set the value of response to the fileData Hook.
+    } catch (error) {
+      console.log('*********************'+error+'');
+      makeFile(writeRecords(records.recs));
+    }
+  };
+  
   const makeFile = async (content) => {
     try {
       //create a file at filePath. Write the content data to it
@@ -351,10 +380,10 @@ const PlayField = (props) => {
   };
 
   function writeRecords(rr) {
-    const recordlist = rr
+    var recordlist = rr
     .sort((a,b) => b.record-a.record)
-    .map((item) => item.record+':'+item.date+',');
-    return recordlist+'';
+    .map((item) => '{"record":"'+item.record+'","date":"'+item.date+'"}');
+    return '['+recordlist+']';
   }
 
   var boxRows = field.x;
@@ -425,9 +454,22 @@ const PlayField = (props) => {
                     fadeAnim.stopAnimation(( value ) => {
                       setFadeValue(value);
                     });
+                    var cons='';
+                    if (records.recs[4].record<field.score) {
+                      cons=' Congratulations! New highscore!';
+                      var rd = records;
+                      rd.recs[4].record=field.score;
+                      var date = new Date().getDate(); //Current Date
+                      var month = new Date().getMonth() + 1; //Current Month
+                      var year = new Date().getFullYear(); //Current Year
+                      rd.recs[4].date=date+'/'+month+'/'+year;
+                      rd.recs=rd.recs.sort((a,b) => b.record-a.record);
+                      setRecords(rd);
+                      makeFile(writeRecords(records.recs));
+                    }
                     Alert.alert(
                       'Game over',
-                      'Your score:'+field.score,
+                      'Your score:'+field.score+cons,
                       [
                         {text: 'OK', onPress: this.onDeleteBTN},
                       ],
@@ -529,7 +571,8 @@ const PlayField = (props) => {
       )
     useEffect(() => {
       fadeAnim.setValue(fadeValue);
-      makeFile(writeRecords(records));
+      readFile();
+//      makeFile(writeRecords(records));
     }, []);
     
     if (menuVisible==0) fadeIn(fadeAnim,0,calcTime(field.level,step),field);
@@ -597,13 +640,13 @@ const PlayField = (props) => {
             <View style={{minHeight:10}}>
 
             </View>
-            <View key="rr" style={[styles.boxrows, {position:'absolute', top:5, backgroundColor:'rgba(127,255,127,0.5)', borderRadius: 10}]}>
-            <Text style={{fontSize:28}}>Local Records{"\n"}</Text>
-            <Text style={{fontSize:28}}>...</Text>
-            <Text style={{fontSize:28}}>...</Text>
-            <Text style={{fontSize:28}}>...</Text>
-            <Text style={{fontSize:28}}>...</Text>
-            <Text style={{fontSize:28}}>...</Text>
+            <View key="rr" style={[styles.boxrows, {alignItems:'baseline',position:'absolute', padding:30, top:5, backgroundColor:'rgba(127,255,127,0.5)', borderRadius: 10}]}>
+            <Text style={{fontSize:28, left:40}}>Local Records{"\n"}</Text>
+            <Text style={{fontSize:28}}>{records.recs[0].date} : {records.recs[0].record}</Text>
+            <Text style={{fontSize:28}}>{records.recs[1].date} : {records.recs[1].record}</Text>
+            <Text style={{fontSize:28}}>{records.recs[2].date} : {records.recs[2].record}</Text>
+            <Text style={{fontSize:28}}>{records.recs[3].date} : {records.recs[3].record}</Text>
+            <Text style={{fontSize:28}}>{records.recs[4].date} : {records.recs[4].record}</Text>
             </View>
             </View>
         </ImageBackground>
