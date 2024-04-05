@@ -57,7 +57,7 @@ const PlayField = (props) => {                                // main game field
 // ---------------------------------------------------------  end hooks section
 // ---------------------------------------------------------  file handling
 
-const readFile = async () => {                                    // reading scoresfrom file
+const readFile = async () => {                                    // reading scores from file
   var response = ''; 
   try {
     response = await RNFS.readFile(filePath);
